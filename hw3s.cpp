@@ -58,7 +58,6 @@ int main() {
                 else {
                     pair<pair<double, double>, pair<double, double>> cur_pair = pairs_tmp.back();
                     pairs_tmp.pop_back();
-                    // update @MAX
                     double tmp_max = max(cur_pair.first.second, cur_pair.second.second);
                     #pragma omp critical(dataupdate) 
                     {

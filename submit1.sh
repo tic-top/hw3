@@ -16,5 +16,5 @@
 # (">" redirects the print output of your pfogram,
 # in this case to "output.txt")
 
-g++ -std=c++11 -O3 -fopenmp -o s hw3s.cpp
+g++ -std=c++11 -O3 -fopenmp -o s hw3p.cpp
 OMP_NUM_THREADS=1 ./s > output1.txt
