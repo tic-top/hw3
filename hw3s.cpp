@@ -8,7 +8,7 @@ using namespace std::chrono;
 using namespace std;
 
 
-int NUM_IT = 100; // TODO: 100 may be changed.
+int NUM_IT = 100;
 double MAX = 0;
 
 void ini_deque(deque<pair<pair<double, double>, pair<double, double>> >& pairs, double a, double b, int worker_num) {
@@ -38,48 +38,59 @@ int main() {
     auto start = high_resolution_clock::now();
     ini_deque(pairs, a, b, worker_num);
     MAX = max(f(a), f(b));
-    while(!pairs.empty()) {
+    while (!pairs.empty()) {
         int num_responsibility = ceil((double)pairs.size() / (double)worker_num);
-        #pragma omp parallel 
+
+        #pragma omp parallel
         {
-            deque<pair<pair<double, double>, pair<double, double>> >  pairs_tmp;
+            deque<pair<pair<double, double>, pair<double, double>>> pairs_tmp;
+
+            #pragma omp for schedule(dynamic) 
             for (int i = 0; i < num_responsibility; i++) {
-                #pragma omp critical(dataupdate) 
-                {
-                    if (!pairs.empty()) {
-                        pairs_tmp.push_back(pairs.front());
-                        pairs.pop_front();
+                if (!pairs.empty()) {
+                    #pragma omp critical
+                    {
+                        if (!pairs.empty()) {
+                            pairs_tmp.push_back(pairs.front());
+                            pairs.pop_front();
+                        }
                     }
                 }
             }
 
-            for (int i = 0; i < NUM_IT; i++) {
-                if (pairs_tmp.empty()) break;
-                else {
-                    pair<pair<double, double>, pair<double, double>> cur_pair = pairs_tmp.back();
-                    pairs_tmp.pop_back();
-                    double tmp_max = max(cur_pair.first.second, cur_pair.second.second);
-                    #pragma omp critical(dataupdate) 
-                    {
-                        MAX = MAX > tmp_max ? MAX : tmp_max;
-                    }
-                    // insert into deque @pairs_tmp
-                    if ((cur_pair.second.first - cur_pair.first.first) / 2 < min_interval) { continue;}
+            for (int iter = 0; iter < NUM_IT && !pairs_tmp.empty(); iter++) {
+                auto cur_pair = pairs_tmp.back();
+                pairs_tmp.pop_back();
+                double tmp_max = max(cur_pair.first.second, cur_pair.second.second);
+
+                #pragma omp critical
+                {
+                    MAX = max(MAX, tmp_max);
+                }
+
+                if ((cur_pair.second.first - cur_pair.first.first) / 2 >= min_interval) {
                     double mid_point = (cur_pair.first.first + cur_pair.second.first) / 2;
                     double g_mid_point = f(mid_point);
+
                     double possible_max_left = (cur_pair.first.second + g_mid_point + s * (mid_point - cur_pair.first.first)) / 2;
-                    
-                    if (possible_max_left >= MAX + epsilon) pairs_tmp.push_back({cur_pair.first, {mid_point, g_mid_point}});
+                    if (possible_max_left >= MAX + epsilon) {
+                        pairs_tmp.push_back({cur_pair.first, {mid_point, g_mid_point}});
+                    }
+
                     double possible_max_right = (g_mid_point + cur_pair.second.second + s * (cur_pair.second.first - mid_point)) / 2;
-                    if (possible_max_right >= MAX + epsilon) pairs_tmp.push_back({{mid_point, g_mid_point}, cur_pair.second});
+                    if (possible_max_right >= MAX + epsilon) {
+                        pairs_tmp.push_back({{mid_point, g_mid_point}, cur_pair.second});
+                    }
                 }
             }
-            #pragma omp critical(dataupdate) 
+
+            #pragma omp critical
             {
                 pairs.insert(pairs.end(), pairs_tmp.begin(), pairs_tmp.end());
             }
         }
     }
+
     cout << "MAX:" << MAX << endl;
     auto end = high_resolution_clock::now();
     auto duration = duration_cast<seconds>(end - start);
