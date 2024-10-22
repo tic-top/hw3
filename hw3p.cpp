@@ -39,53 +39,40 @@ int main() {
     auto start = high_resolution_clock::now();
     ini_deque(pairs, a, b, worker_num);
     MAX = max(f(a), f(b));
-    while (!pairs.empty()) {
+    while(!pairs.empty()) {
         int num_responsibility = ceil((double)pairs.size() / (double)worker_num);
-
-        #pragma omp parallel
+        #pragma omp parallel 
         {
-            deque<pair<pair<double, double>, pair<double, double>>> pairs_tmp;
-
-            #pragma omp for schedule(dynamic) 
+            deque<pair<pair<double, double>, pair<double, double>> >  pairs_tmp;
             for (int i = 0; i < num_responsibility; i++) {
-                if (!pairs.empty()) {
-                    #pragma omp critical
-                    {
-                        if (!pairs.empty()) {
-                            pairs_tmp.push_back(pairs.front());
-                            pairs.pop_front();
-                        }
-                    }
-                }
-            }
-
-            for (int iter = 0; iter < NUM_IT && !pairs_tmp.empty(); iter++) {
-                auto cur_pair = pairs_tmp.back();
-                pairs_tmp.pop_back();
-                double tmp_max = max(cur_pair.first.second, cur_pair.second.second);
-
-                #pragma omp critical
+                #pragma omp critical(dataupdate) 
                 {
-                    MAX = max(MAX, tmp_max);
-                }
-
-                if ((cur_pair.second.first - cur_pair.first.first) / 2 >= min_interval) {
-                    double mid_point = (cur_pair.first.first + cur_pair.second.first) / 2;
-                    double g_mid_point = f(mid_point);
-
-                    double possible_max_left = (cur_pair.first.second + g_mid_point + s * (mid_point - cur_pair.first.first)) / 2;
-                    if (possible_max_left >= MAX + epsilon) {
-                        pairs_tmp.push_back({cur_pair.first, {mid_point, g_mid_point}});
-                    }
-
-                    double possible_max_right = (g_mid_point + cur_pair.second.second + s * (cur_pair.second.first - mid_point)) / 2;
-                    if (possible_max_right >= MAX + epsilon) {
-                        pairs_tmp.push_back({{mid_point, g_mid_point}, cur_pair.second});
+                    if (!pairs.empty()) {
+                        pairs_tmp.push_back(pairs.front());
+                        pairs.pop_front();
                     }
                 }
             }
-
-            #pragma omp critical
+            for (int i = 0; i < NUM_IT; i++) {
+                if (!pairs_tmp.empty()){
+                    pair<pair<double, double>, pair<double, double>> cur_pair = pairs_tmp.back();
+                    pairs_tmp.pop_back();
+                    double tmp_max = max(cur_pair.first.second, cur_pair.second.second);
+                    #pragma omp critical(dataupdate) 
+                    {
+                        MAX = MAX > tmp_max ? MAX : tmp_max;
+                    }
+                    if ((cur_pair.second.first - cur_pair.first.first) / 2 < min_interval) { continue;}
+                    double mid_point = (cur_pair.first.first + cur_pair.second.first) / 2;
+                    double f_mid_point = f(mid_point);
+                    double possible_max_left = (cur_pair.first.second + f_mid_point + s * (mid_point - cur_pair.first.first)) / 2;
+                    
+                    if (possible_max_left >= MAX + epsilon) pairs_tmp.push_back({cur_pair.first, {mid_point, f_mid_point}});
+                    double possible_max_right = (f_mid_point + cur_pair.second.second + s * (cur_pair.second.first - mid_point)) / 2;
+                    if (possible_max_right >= MAX + epsilon) pairs_tmp.push_back({{mid_point, f_mid_point}, cur_pair.second});
+                }
+            }
+            #pragma omp critical(dataupdate) 
             {
                 pairs.insert(pairs.end(), pairs_tmp.begin(), pairs_tmp.end());
             }
