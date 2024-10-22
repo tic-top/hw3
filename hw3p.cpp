@@ -79,7 +79,7 @@ int main() {
             }
         }
     }
-    cout << "MAX is " << MAX << endl;
+    cout << "MAX: " << MAX << endl;
     auto end = high_resolution_clock::now();
     auto duration = duration_cast<seconds>(end - start);
     cout << "Time: " << duration.count() << endl;
